@@ -20,13 +20,12 @@
 import logging
 import os
 import signal
-
+from shutil import copyfile
 import ipaddr
 
 from config_parser import config_file_hash, dp_parser
 from valve import valve_factory
 from util import kill_on_exception, get_sys_prefix, get_logger, dpid_log
-
 
 from ryu.base import app_manager
 from ryu.controller.handler import CONFIG_DISPATCHER
@@ -43,7 +42,6 @@ from ryu.ofproto import ofproto_v1_3, ether
 from ryu.services.protocols.bgp.bgpspeaker import BGPSpeaker
 
 from abc_ryu_app import ABCRyuApp
-
 from faucet_events import EventFaucetReconfigure,EventFaucetResolveGateways, EventFaucetHostExpire
 
 class Faucet(ABCRyuApp):
@@ -68,7 +66,8 @@ class Faucet(ABCRyuApp):
                           EventFaucetResolveGateways.__name__,
                           EventFaucetHostExpire.__name__,
                           dpset.EventDP.__name__,
-                          dpset.EventDPReconnected.__name__
+                          dpset.EventDPReconnected.__name__,
+                          signal.SIGINT
                           )
                           
     def __init__(self, contr, *args, **kwargs):
@@ -90,6 +89,10 @@ class Faucet(ABCRyuApp):
             'FAUCET_EXCEPTION_LOG',
             sysprefix + '/var/log/ryu/faucet/faucet_exception.log')
 
+        #copy original faucet file
+        copy_filename = self.config_file[:-5] + "copy" + self.config_file[-5:]
+        copyfile(self.config_file, copy_filename)
+        
         # Setup logging
         self.logger = get_logger(
             self.logname, self.logfile, logging.DEBUG, 0)
@@ -158,16 +161,16 @@ class Faucet(ABCRyuApp):
                 return True
         return False
 
+    def clean_up(self):
+        copy_filename = self.config_file[:-5] + "copy" + self.config_file[-5:]
+        copyfile(copy_filename, self.config_file)
+
     def reload_config(self, ryu_event):
         """Handle a request to reload configuration.
 
         Args:
             ryu_event (ryu.controller.event.EventReplyBase): triggering event.
         """
-        
-        print "+++++++++++++++++++++++++++++++++++++++++++++++++++++++"
-        print "SIGHUP"
-        print "+++++++++++++++++++++++++++++++++++++++++++++++++++++++"
             
         new_config_file = os.getenv('FAUCET_CONFIG', self.config_file)
         if not self._config_changed(new_config_file):
