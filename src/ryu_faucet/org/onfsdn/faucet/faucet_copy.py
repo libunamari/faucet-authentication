@@ -102,8 +102,7 @@ class Faucet(ABCRyuApp):
 
         # Set up a valve object for each datapath
         self.valves = {}
-        self.config_hashes, valve_dps = dp_parser(
-            self.config_file, self.logname)
+        self.config_hashes, valve_dps = dp_parser(self.config_file, self.logname)
         for valve_dp in valve_dps:
             # pylint: disable=no-member
             valve = valve_factory(valve_dp)
@@ -162,6 +161,10 @@ class Faucet(ABCRyuApp):
         return False
 
     def clean_up(self):
+        """ Reset the config file to the one at the start of the program
+            This is so that any acl rules that were added to the file to log on 
+            clients are removed.        
+        """
         copy_filename = self.config_file[:-5] + "copy" + self.config_file[-5:]
         copyfile(copy_filename, self.config_file)
 
