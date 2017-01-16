@@ -324,9 +324,10 @@ class Faucet(ABCRyuApp):
         """
         dp_id = ryu_dp.id
         if dp_id in self.valves:
-            discovered_ports = [
-                p.port_no for p in ryu_dp.ports.values() if p.state == 0]
-            flowmods = self.valves[dp_id].datapath_connect(dp_id, discovered_ports)
+            discovered_up_port_nums = [
+                port.port_no for port in ryu_dp.ports.values() if port.state == 0]
+            flowmods = self.valves[dp_id].datapath_connect(
+                dp_id, discovered_up_port_nums)
             self._send_flow_msgs(ryu_dp, flowmods)
         else:
             self.logger.error('handler_datapath: unknown %s', dpid_log(dp_id))
@@ -451,14 +452,17 @@ class Faucet(ABCRyuApp):
             prefix = ipaddr.IPNetwork(
                 '/'.join((str(controller_ip.ip), str(controller_ip.prefixlen))))
             bgp_speaker.prefix_add(
-                prefix=str(prefix), next_hop=controller_ip.ip)
+                prefix=str(prefix), next_hop=str(controller_ip.ip))
         for route_table in (vlan.ipv4_routes, vlan.ipv6_routes):
             for ip_dst, ip_gw in route_table.iteritems():
                 bgp_speaker.prefix_add(
                     prefix=str(ip_dst), next_hop=str(ip_gw))
-        bgp_speaker.neighbor_add(
-            address=vlan.bgp_neighbor_address,
-            remote_as=vlan.bgp_neighbor_as)
+        for bgp_neighbor_address in vlan.bgp_neighbor_addresses:
+            bgp_speaker.neighbor_add(
+                address=bgp_neighbor_address,
+                remote_as=vlan.bgp_neighbor_as,
+                enable_ipv4=True,
+                enable_ipv6=True)
         return bgp_speaker
 
     def _reset_bgp(self):
