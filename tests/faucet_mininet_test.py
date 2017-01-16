@@ -47,6 +47,7 @@ from mininet.net import Mininet
 from mininet.node import Intf
 from mininet.util import dumpNodeConnections, pmonitor
 from mininet.clean import Cleanup
+from packaging import version
 
 import faucet_mininet_test_util
 import faucet_mininet_test_base
@@ -57,27 +58,27 @@ import faucet_mininet_test_base
 # RE to check present RE to get version, minimum required version.
 EXTERNAL_DEPENDENCIES = (
     ('ryu-manager', ['--version'],
-     'ryu-manager', r'ryu-manager (\d+\.\d+)\n', float(4.4)),
+     'ryu-manager', r'ryu-manager (\d+\.\d+)\n', "4.9"),
     ('ovs-vsctl', ['--version'], 'Open vSwitch',
-     r'ovs-vsctl\s+\(Open vSwitch\)\s+(\d+\.\d+)\.\d+\n', float(2.3)),
+     r'ovs-vsctl\s+\(Open vSwitch\)\s+(\d+\.\d+)\.\d+\n', "2.3"),
     ('tcpdump', ['-h'], 'tcpdump',
-     r'tcpdump\s+version\s+(\d+\.\d+)\.\d+\n', float(4.5)),
+     r'tcpdump\s+version\s+(\d+\.\d+)\.\d+\n', "4.5"),
     ('nc', [], 'nc from the netcat-openbsd', '', 0),
     ('vconfig', [], 'the VLAN you are talking about', '', 0),
     ('fuser', ['-V'], r'fuser \(PSmisc\)',
-     r'fuser \(PSmisc\) (\d+\.\d+)\n', float(22.0)),
+     r'fuser \(PSmisc\) (\d+\.\d+)\n', "22.0"),
     ('mn', ['--version'], r'\d+\.\d+.\d+',
-     r'(\d+\.\d+).\d+', float(2.2)),
+     r'(\d+\.\d+).\d+', "2.2"),
     ('exabgp', ['--version'], 'ExaBGP',
-     r'ExaBGP : (\d+\.\d+).\d+', float(3.4)),
+     r'ExaBGP : (\d+\.\d+).\d+', "3.4"),
     ('pip', ['show', 'influxdb'], 'influxdb',
-     r'Version:\s+(\d+\.\d+)\.\d+', float(3.0)),
+     r'Version:\s+(\d+\.\d+)\.\d+', "3.0"),
     ('pylint', ['--version'], 'pylint',
-     r'pylint (\d+\.\d+).\d+,', float(1.6)),
+     r'pylint (\d+\.\d+).\d+,', "1.6"),
     ('curl', ['--version'], 'libcurl',
-     r'curl (\d+\.\d+).\d+', float(7.3)),
+     r'curl (\d+\.\d+).\d+', "7.3"),
     ('ladvd', ['-v'], 'ladvd',
-     r'ladvd version (\d+\.\d+)\.\d+', float(1.1)),
+     r'ladvd version (\d+\.\d+)\.\d+', "1.1"),
 )
 
 # Must pass with 0 lint errors
@@ -161,13 +162,19 @@ class FaucetTest(faucet_mininet_test_base.FaucetTestBase):
     def attach_physical_switch(self):
         """Bridge a physical switch into test topology."""
         switch = self.net.switches[0]
-        hosts_count = len(self.net.hosts)
+        mapped_base = max(len(self.switch_map), len(self.port_map))
         for i, test_host_port in enumerate(sorted(self.switch_map)):
             port_i = i + 1
-            mapped_port_i = port_i + hosts_count
+            mapped_port_i = mapped_base + port_i
             phys_port = Intf(self.switch_map[test_host_port], node=switch)
             switch.cmd('ip link set dev %s up' % phys_port)
-            switch.cmd('ovs-vsctl add-port %s %s' % (switch.name, phys_port.name))
+            switch.cmd(
+                ('ovs-vsctl add-port %s %s -- '
+                 'set Interface %s ofport_request=%u') % (
+                     switch.name,
+                     phys_port.name,
+                     phys_port.name,
+                     mapped_port_i))
             for port_pair in ((port_i, mapped_port_i), (mapped_port_i, port_i)):
                 port_x, port_y = port_pair
                 switch.cmd('%s add-flow %s in_port=%u,actions=output:%u' % (
@@ -229,14 +236,34 @@ class FaucetTest(faucet_mininet_test_base.FaucetTestBase):
     def verify_lldp_blocked(self):
         first_host, second_host = self.net.hosts[0:2]
         lldp_filter = 'ether proto 0x88cc'
+        ladvd_mkdir = 'mkdir -p /var/run/ladvd'
         send_lldp = 'ladvd -f -L -e lo -o %s' % second_host.defaultIntf()
         tcpdump_txt = self.tcpdump_helper(
             first_host, lldp_filter,
-            [lambda: second_host.cmd(send_lldp),
+            [lambda: second_host.cmd(ladvd_mkdir),
              lambda: second_host.cmd(send_lldp),
-             lambda: second_host.cmd(send_lldp)])
-        return re.search('0 packets captured', tcpdump_txt)
+             lambda: second_host.cmd(send_lldp),
+             lambda: second_host.cmd(send_lldp)],
+            timeout=20, packets=5)
+        if re.search(second_host.MAC(), tcpdump_txt):
+            return False
+        return True
 
+    def is_cdp_blocked(self):
+        first_host, second_host = self.net.hosts[0:2]
+        cdp_filter = 'ether host 01:00:0c:cc:cc:cc and ether[20:2]==0x2000'
+        ladvd_mkdir = 'mkdir -p /var/run/ladvd'
+        send_cdp = 'ladvd -f -C -e lo -o %s' % (second_host.defaultIntf())
+        tcpdump_txt = self.tcpdump_helper(first_host, cdp_filter,
+             [lambda: second_host.cmd(ladvd_mkdir), 
+              lambda: second_host.cmd(send_cdp),
+              lambda: second_host.cmd(send_cdp),
+              lambda: second_host.cmd(send_cdp)],
+             timeout=20, packets=5)
+
+        if re.search(second_host.MAC(), tcpdump_txt):
+            return False
+        return True
 
     def verify_ping_mirrored(self, first_host, second_host, mirror_host):
         self.net.ping((first_host, second_host))
@@ -268,7 +295,11 @@ class FaucetTest(faucet_mininet_test_base.FaucetTestBase):
                 if os.path.exists(watcher_file):
                     break
                 time.sleep(1)
-            self.assertTrue(os.stat(watcher_file).st_size > 0)
+            if (os.path.exists(watcher_file) and
+                    os.stat(watcher_file).st_size > 0):
+                continue
+            self.fail(
+                'gauge did not output %s (gauge not connected?)' % watcher_file)
 
 
 class FaucetUntaggedTest(FaucetTest):
@@ -314,6 +345,11 @@ class FaucetUntaggedLLDPBlockedTest(FaucetUntaggedTest):
         self.ping_all_when_learned()
         self.assertTrue(self.verify_lldp_blocked())
 
+class FaucetUntaggedCDPTest(FaucetUntaggedTest):
+
+    def test_untagged(self):
+        self.ping_all_when_learned()
+        self.assertFalse(self.is_cdp_blocked())
 
 class FaucetUntaggedLLDPUnblockedTest(FaucetUntaggedTest):
 
@@ -537,11 +573,11 @@ acls:
             time.sleep(2)
             flow_p1 = self.get_matching_flow_on_dpid(
                 self.dpid,
-                ('"table_id": 0, "match": '
+                ('"table_id": 1, "match": '
                  '{"dl_vlan": "0x0000", "in_port": 1}'))
             flow_p3 = self.get_matching_flow_on_dpid(
                 self.dpid,
-                ('"table_id": 0, "match": '
+                ('"table_id": 1, "match": '
                  '{"dl_vlan": "0x0000", "in_port": 3}'))
             prev_dur_p1 = flow_p1['duration_sec']
             prev_dur_p3 = flow_p3['duration_sec']
@@ -557,11 +593,11 @@ acls:
             self.hup_faucet()
             flow_p1 = self.get_matching_flow_on_dpid(
                 self.dpid,
-                ('"table_id": 0, "match": '
+                ('"table_id": 1, "match": '
                  '{"dl_vlan": "0x0000", "in_port": 1}'))
             flow_p3 = self.get_matching_flow_on_dpid(
                 self.dpid,
-                ('"table_id": 0, "match": '
+                ('"table_id": 1, "match": '
                  '{"dl_vlan": "0x0000", "in_port": 3}'))
             actions = flow_p1.get('actions', '')
             actions = [act for act in actions if 'vlan_vid' in act]
@@ -790,10 +826,10 @@ vlans:
         self.assertTrue(self.bogus_mac_flooded_to_port1())
         # Unicast flooding rule for from port 1
         self.assertTrue(self.matching_flow_present(
-            '"table_id": 6, "match": {"dl_vlan": "100", "in_port": 1}'))
+            '"table_id": 7, "match": {"dl_vlan": "100", "in_port": 1}'))
         # Unicast flood rule exists that output to port 1
         self.assertTrue(self.matching_flow_present(
-            '"OUTPUT:1".+"table_id": 6, "match": {"dl_vlan": "100", "in_port": .}'))
+            '"OUTPUT:1".+"table_id": 7, "match": {"dl_vlan": "100", "in_port": .}'))
 
 
 class FaucetUntaggedNoVLanUnicastFloodTest(FaucetUntaggedTest):
@@ -825,10 +861,10 @@ vlans:
         self.assertFalse(self.bogus_mac_flooded_to_port1())
         # No unicast flooding rule for from port 1
         self.assertFalse(self.matching_flow_present(
-            '"table_id": 6, "match": {"dl_vlan": "100", "in_port": 1}'))
+            '"table_id": 7, "match": {"dl_vlan": "100", "in_port": 1}'))
         # No unicast flood rule exists that output to port 1
         self.assertFalse(self.matching_flow_present(
-            '"OUTPUT:1".+"table_id": 6, "match": {"dl_vlan": "100", "in_port": .}'))
+            '"OUTPUT:1".+"table_id": 7, "match": {"dl_vlan": "100", "in_port": .}'))
 
 
 class FaucetUntaggedPortUnicastFloodTest(FaucetUntaggedTest):
@@ -863,10 +899,10 @@ vlans:
         self.assertFalse(self.bogus_mac_flooded_to_port1())
         # No unicast flooding rule for from port 1
         self.assertFalse(self.matching_flow_present(
-            '"table_id": 6, "match": {"dl_vlan": "100", "in_port": 1}'))
+            '"table_id": 7, "match": {"dl_vlan": "100", "in_port": 1}'))
         # No unicast flood rule exists that output to port 1
         self.assertFalse(self.matching_flow_present(
-            '"OUTPUT:1".+"table_id": 6, "match": {"dl_vlan": "100", "in_port": .}'))
+            '"OUTPUT:1".+"table_id": 7, "match": {"dl_vlan": "100", "in_port": .}'))
 
 
 class FaucetUntaggedNoPortUnicastFloodTest(FaucetUntaggedTest):
@@ -899,14 +935,14 @@ vlans:
         self.assertFalse(self.bogus_mac_flooded_to_port1())
         # Unicast flood rule present for port 2, but NOT for port 1
         self.assertTrue(self.matching_flow_present(
-            '"table_id": 6, "match": {"dl_vlan": "100", "in_port": 2}'))
+            '"table_id": 7, "match": {"dl_vlan": "100", "in_port": 2}'))
         self.assertFalse(self.matching_flow_present(
-            '"table_id": 6, "match": {"dl_vlan": "100", "in_port": 1}'))
+            '"table_id": 7, "match": {"dl_vlan": "100", "in_port": 1}'))
         # Unicast flood rules present that output to port 2, but NOT to port 1
         self.assertTrue(self.matching_flow_present(
-            '"OUTPUT:2".+"table_id": 6, "match": {"dl_vlan": "100", "in_port": .}'))
+            '"OUTPUT:2".+"table_id": 7, "match": {"dl_vlan": "100", "in_port": .}'))
         self.assertFalse(self.matching_flow_present(
-            '"OUTPUT:1".+"table_id": 6, "match": {"dl_vlan": "100", "in_port": .}'))
+            '"OUTPUT:1".+"table_id": 7, "match": {"dl_vlan": "100", "in_port": .}'))
 
 
 class FaucetUntaggedHostMoveTest(FaucetUntaggedTest):
@@ -2214,16 +2250,16 @@ def check_dependencies():
                     required_binary, binary_output)
                 return False
             try:
-                binary_version = float(version_match.group(1))
+                binary_version = version_match.group(1)
             except ValueError:
                 print 'cannot parse version %s for %s' % (
                     version_match, required_binary)
                 return False
-            if binary_version < binary_minversion:
-                print '%s version %.1f is less than required version %.1f' % (
+            if version.parse(binary_version) < version.parse(binary_minversion):
+                print '%s version %s is less than required version %s' % (
                     required_binary, binary_version, binary_minversion)
                 return False
-            print '%s version is %.1f' % (required_binary, binary_version)
+            print '%s version is %s' % (required_binary, binary_version)
         else:
             print '%s present (%s)' % (required_binary, binary_present_re)
     return True
