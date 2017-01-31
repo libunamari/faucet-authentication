@@ -42,8 +42,10 @@ To Uninstall the package
 Installation with CapFlow and ACLSwitch Controller
 --------------------------------------------------
 The following steps will detail how to use CapFlow and Dot1x with Faucet
+
 Clone the required repositories:
 --------------------------------
+
 .. code:: bash
 
    git clone https://github.com/libunamari/faucet.git
