@@ -16,7 +16,7 @@ This README is a shortened version of the original, which can be found `here <ht
 .
 
 =====================
-Installation with pip
+Installation
 =====================
 
 Installation automatically installs dependent Python packages [ryu, pyaml, influxdb client] recursively. You may have to install some Python support packages as well.
@@ -29,10 +29,6 @@ You have run this as ``root`` or use ``sudo``
   pip install ryu-faucet
   pip show -f ryu-faucet
 
-Optional Install for Network Monitoring Dashboard
--------------------------------------------------
-- To setup InfluxDB v0.11+ - https://docs.influxdata.com/influxdb/v0.10/introduction/getting_started/
-- To setup Grafana v3.x - http://docs.grafana.org/installation/
 
 Uninstall
 ---------
@@ -42,9 +38,10 @@ To Uninstall the package
 
   pip uninstall ryu-faucet
   
-===================================================
+
 Installation with CapFlow and ACLSwitch Controller
-===================================================
+--------------------------------------------------
+The following steps will detail how to use CapFlow and Dot1x with Faucet
 Clone the required repositories:
 --------------------------------
 .. code:: bash
@@ -109,6 +106,11 @@ An example config file is shown below
                actions:
                    allow: 1
 
+Install the dependencies
+------------------------
+.. code:: bash
+
+   pip install ruamel.yaml
    
 
 =======
