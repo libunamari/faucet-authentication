@@ -12,12 +12,13 @@ Faucet is an OpenFlow controller for a layer 2 switch based on Waikato Universit
 
 This forked repository is for integration with  `Dot1xForwarder and CapFlow <https://github.com/Bairdo/sdn-authenticator/tree/faucet-integration>`_, as well as the controller in `ACLSwitch <https://github.com/Bairdo/ACLSwitch-1/tree/faucet-integration>`_.
 
-This README is a shortened version of the original, which can be found `here <https://github.com/REANNZ/faucet/blob/master/README.rst>`_
-.
+This README is a shortened version of the original, which can be found `here <https://github.com/REANNZ/faucet/blob/master/README.rst>`_.
 
-=====================
-Installation
-=====================
+The system allows for two different methods of authenticating, 802.1x and a captive portal. 802.1x will be attempted first. However, when a user has failed to authenticate using this method, the captive portal is then attempted. This is where the user is redirected to a login page when they attempt to visit a web page. The system requires 5 components: an end user, portal server (authentication servers), the Internet, OpenFlow Controller, and an OpenFlow 1.3 capable switch. This is further detailed `here <https://github.com/Bairdo/sdn-authenticator/tree/faucet-integration>`_. The resources in this repository are only for the controller component. 
+
+======================
+Installing only Faucet
+======================
 
 Installation automatically installs dependent Python packages [ryu, pyaml, influxdb client] recursively. You may have to install some Python support packages as well.
 
@@ -38,10 +39,10 @@ To Uninstall the package
 
   pip uninstall ryu-faucet
   
-
+=================================================
 Installation with CapFlow and ACLSwitch Controller
---------------------------------------------------
-The following steps will detail how to use CapFlow and Dot1x with Faucet
+==================================================
+The following steps will detail how to use CapFlow and Dot1x with Faucet.
 
 Clone the required repositories:
 --------------------------------
@@ -135,7 +136,7 @@ Run with ``ryu-manager`` (uses ``/etc/ryu/faucet/faucet.yaml`` as configuration 
     # $EDITOR /etc/ryu/faucet/faucet.yaml
     # ryu-manager --verbose faucet.py
 
-To run, the controller in ACLSwitch must be called:
+To run, the `controller <https://github.com/Bairdo/ACLSwitch-1/blob/faucet-integration/Ryu_Application/controller.py>`_ in ACLSwitch must be called:
 
 .. code:: bash
 
@@ -147,7 +148,7 @@ Alternatively, if OF Controller is using a non-default port of 6633, for example
 
    # ryu-manager --verbose  --ofp-tcp-listen-port 6653 <Location_Path>/ACLSwitch-1/Ryu_Application/controller.py
 
-The controller must be run in conjunction with the HTTPServer which is in ACLSwitch-1/Ryu_Application. This can be run by:
+The controller must be run in conjunction with the `HTTPServer <https://github.com/Bairdo/ACLSwitch-1/blob/faucet-integration/Ryu_Application/HTTPServer.py>`_ which is in ACLSwitch-1/Ryu_Application. This is so that the portal component is able to communicate with the controller component to indicate which users are authenticated/unauthenticated. This can be run by:
 
 .. code:: bash
 
@@ -171,6 +172,8 @@ To tell Faucet to reload its configuration file after you've changed it, simply 
 OpenFlow Pipeline
 =================
 As of Faucet v1.3 release, ACL table is now Table 0 so that actions like port mirroring happen without packet modifications and processing.  VLAN table is now Table 1.
+
+However, for the purpose of this project, the tables have been shifted by two to allow the authentication tables to be first
 
 ::
 
