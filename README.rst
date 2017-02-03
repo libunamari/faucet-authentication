@@ -40,7 +40,7 @@ To Uninstall the package
 
   pip uninstall ryu-faucet
   
-=================================================
+==================================================
 Installation with CapFlow and ACLSwitch Controller
 ==================================================
 
