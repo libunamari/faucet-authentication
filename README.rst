@@ -16,6 +16,7 @@ This README is a shortened version of the original, which can be found `here <ht
 
 The system allows for two different methods of authenticating, 802.1x and a captive portal. 802.1x will be attempted first. However, when a user has failed to authenticate using this method, the captive portal is then attempted. This is where the user is redirected to a login page when they attempt to visit a web page. The system requires 5 components: an end user, portal server (authentication servers), the Internet, OpenFlow Controller, and an OpenFlow 1.3 capable switch. This is further detailed `here <https://github.com/Bairdo/sdn-authenticator/tree/faucet-integration>`_. The resources in this repository are only for the controller component. 
 
+
 ======================
 Installing only Faucet
 ======================
@@ -42,6 +43,7 @@ To Uninstall the package
 =================================================
 Installation with CapFlow and ACLSwitch Controller
 ==================================================
+
 The following steps will detail how to use CapFlow and Dot1x with Faucet.
 
 Clone the required repositories:
