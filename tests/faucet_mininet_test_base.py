@@ -171,7 +171,8 @@ class FaucetTestBase(unittest.TestCase):
     port_map = {'port_1': 1, 'port_2': 2, 'port_3': 3, 'port_4': 4}
     switch_map = {}
     tmpdir = None
-
+    table_offset = 0
+	
     def __init__(self, name, config):
         super(FaucetTestBase, self).__init__(name)
         self.config = config
@@ -290,7 +291,7 @@ dbs:
     def host_learned(self, host, timeout=10):
         """Return True if a host has been learned on default DPID."""
         return self.matching_flow_present(
-            '"table_id": 3,.+"dl_src": "%s"' % host.MAC(), timeout)
+            '"table_id": %d,.+"dl_src": "%s"' % (self.table_offset + 3, host.MAC()), timeout)
 
     def host_ipv4(self, host):
         """Return first IPv4/netmask for host's default interface."""
