@@ -93,6 +93,9 @@ class Faucet(ABCRyuApp):
         copy_filename = self.config_file[:-5] + "copy" + self.config_file[-5:]
         copyfile(self.config_file, copy_filename)
         
+        #write pid to file
+        self.write_pid()        
+        
         # Setup logging
         self.logger = get_logger(
             self.logname, self.logfile, logging.DEBUG, 0)
@@ -120,6 +123,12 @@ class Faucet(ABCRyuApp):
         self.dp_bgp_speakers = {}
         self._reset_bgp()
 
+    def write_pid(self):
+		pid = str(os.getpid())
+		controller_pid_file = os.getenv('CONTR_PID', '/etc/ryu/contr_pid')
+		with open(controller_pid_file, "w") as f: 
+			f.write(pid)
+		
     def _send_flow_msgs(self, ryu_dp, flow_msgs):
         """Send OpenFlow messages to a connected datapath.
 
