@@ -32,6 +32,10 @@ class FaucetDot1xCapFlowController(RemoteController):
     def __init__(self, name, **kwargs):
         self.ofctl_port = 8084
         RemoteController.__init__(self, name, **kwargs)
+    
+    def checkListening(self):
+        "Overridden to do nothing."
+        return
 
 
 class MultiSwitch(OVSSwitch):
