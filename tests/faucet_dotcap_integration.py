@@ -104,6 +104,11 @@ class FaucetIntegrationTest(faucet_mininet_test_base.FaucetTestBase):
             ping_result = host.cmd('ping -c1 %s' % dst)
             self.assertIsNone(re.search(self.ONE_GOOD_PING, ping_result))
 
+    def check_http_connection(self, host):
+        """Test the http connectivity"""
+        result = host.cmdPrint("wget --output-document - --quiet www.google.com/humans.txt")
+        return re.search("Google is built by a large",result) is not None
+
     def start_net(self):
         """Start Mininet."""
         os.system('./run_controller.sh')
@@ -170,6 +175,8 @@ class FaucetIntegrationCapFlowLogonTest(FaucetIntegrationTest):
         h0 = self.find_host("h0")
         self.logon_capflow(h0)
         self.one_ipv4_ping(h0, "www.google.co.nz")
+        result = self.check_http_connection(h0)
+        self.assertTrue(result)
 
 
 class FaucetIntegrationSomeLoggedOnTest(FaucetIntegrationTest):
@@ -248,6 +255,8 @@ class FaucetIntegrationDot1XLogonTest(FaucetIntegrationTest):
         h0 = self.find_host("h0")
         self.logon_dot1x(h0)
         self.one_ipv4_ping(h0, "www.google.co.nz")
+        result = self.check_http_connection(h0)
+        self.assertTrue(result)
 
 
 class FaucetIntegrationDot1XLogoffTest(FaucetIntegrationTest):
@@ -258,9 +267,13 @@ class FaucetIntegrationDot1XLogoffTest(FaucetIntegrationTest):
         h0 = self.find_host("h0")
         self.logon_dot1x(h0)
         self.one_ipv4_ping(h0, "www.google.co.nz")
+        result = self.check_http_connection(h0)
+        self.assertTrue(result)
         h0.cmdPrint("wpa_cli logoff")
         time.sleep(1)
         self.fail_ping_ipv4(h0, "www.google.co.nz")
+        result = self.check_http_connection(h0)
+        self.assertFalse(result)
 
 
 class FaucetIntegrationCapFlowLogoffTest(FaucetIntegrationTest):
@@ -271,8 +284,12 @@ class FaucetIntegrationCapFlowLogoffTest(FaucetIntegrationTest):
         h0 = self.find_host("h0")
         self.logon_capflow(h0)
         self.one_ipv4_ping(h0, "www.google.co.nz")
+        result = self.check_http_connection(h0)
+        self.assertTrue(result)
         h0.cmdPrint("timeout 10s curl http://10.0.12.3/loggedout")
         self.fail_ping_ipv4(h0, "www.google.co.nz")
+        result = self.check_http_connection(h0)
+        self.assertFalse(result)
 
 def start_all_tests():
     """Start all the tests in this file"""
